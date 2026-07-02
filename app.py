@@ -304,7 +304,7 @@ def format_stock_data_for_prompt(stock_data: Dict) -> str:
     return formatted
 
 def get_language_prompt_instruction(language_code: str) -> str:
-    """Get instruction for Gemini to respond in specific language"""
+    """Get instruction for Deepseek to respond in specific language"""
     instructions = {
         'es': 'IMPORTANT: Respond entirely in Spanish. Your response must be 100% in Spanish language.',
         'fr': 'IMPORTANT: Respond entirely in French. Your response must be 100% in French language.',
@@ -425,9 +425,9 @@ def process_financial_query(query: str, progress_callback=None):
     log_step('STAGE 3', f'✓ Context Prepared ({stage3_duration}ms)', stage3_duration)
     
     # ========================================================================
-    # STAGE 4: GEMINI GENERATION (with language instruction)
+    # STAGE 4:  GENERATION (with language instruction)
     # ========================================================================
-    log_step('STAGE 4', '🤖 Calling Gemini AI...')
+    log_step('STAGE 4', '🤖 Calling LLM...')
     stage4_start = time.time()
     
     language_instruction = get_language_prompt_instruction(detected_language)
@@ -1056,7 +1056,7 @@ with st.sidebar:
     1. **Input Parsing** – Language Detection + Intent Classification
     2. **Retrieval** – Semantic Search + Document Matching
     3. **Context Prep** – Market Data + Knowledge Base
-    4. **Generation** – Gemini AI (Language-Aware)
+    4. **Generation** – Deepseek AI (Language-Aware)
     5. **Formatting** – Response in Query Language
     """)
     
@@ -1065,7 +1065,7 @@ with st.sidebar:
     st.markdown("#### ✨ Key Features")
     st.markdown("""
     - 🌐 Multilingual Support (8 languages)
-    - 🤖 Gemini 2.5 Flash AI
+    - 🤖 Deepseek AI
     - 📊 Real-time Market Integration
     - 💾 Financial Knowledge Base
     - 🔄 Hybrid Retrieval System
@@ -1078,7 +1078,7 @@ st.markdown("""
         Financial Advisory Intelligence Platform v1.0
     </p>
     <p style="color: #9ca3af; font-size: 11px; margin: 4px 0 0 0;">
-        Powered by Gemini 2.5 Flash + Streamlit | © 2024
+        Powered by Mr. R. Veerababu-VFSTR | © 2026
     </p>
 </div>
 """, unsafe_allow_html=True)
