@@ -190,7 +190,7 @@ def extract_company_names(query: str) -> List[str]:
         system_prompt = (
             "You are a precise financial data extractor. Identify any companies mentioned in the "
             "user's query and map them to their correct Yahoo Finance stock ticker symbols (e.g., Apple -> AAPL, "
-            "Microsoft -> MSFT, Google -> GOOGL, Coca-Cola -> KO, TCS->TCS.NS (becuase it is NSE stock, for all indian nse stocs append .NS)).\n\n"
+            "Microsoft -> MSFT, Google -> GOOGL, Coca-Cola -> KO, TCS->TCS.NS).\n\n"
             "CRITICAL: Return ONLY a valid JSON array of strings containing the ticker symbols. "
             "If no companies or stock tickers are implied, return an empty array []. "
             "Do not include markdown code blocks, formatting, or conversational text. "
