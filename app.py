@@ -533,13 +533,17 @@ IMPORTANT: Use the live stock data and market context provided above to give spe
 # STREAMLIT FRONTEND
 # ============================================================================
 
-# Page configuration
+# Page configuration MUST be the first Streamlit command
 st.set_page_config(
     page_title="Financial Advisory Platform",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Initialize Session State for Login
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
 
 # Professional Corporate CSS
 st.markdown("""
@@ -571,7 +575,7 @@ st.markdown("""
     }
     
     /* Text Input - Subtle White */
-    .stTextArea > div > div > textarea {
+    .stTextArea > div > div > textarea, .stTextInput > div > div > input {
         background-color: #ffffff !important;
         color: #1a1a1a !important;
         border: 1px solid #d0d0d0 !important;
@@ -580,7 +584,7 @@ st.markdown("""
         padding: 12px !important;
     }
     
-    .stTextArea > div > div > textarea:focus {
+    .stTextArea > div > div > textarea:focus, .stTextInput > div > div > input:focus {
         border-color: #2563eb !important;
         box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
     }
@@ -779,306 +783,355 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Professional Header
-st.markdown("""
-<div style="border-bottom: 2px solid #e5e7eb; padding: 30px 0 20px 0; margin-bottom: 30px;">
-    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-        <div style="font-size: 32px;">🏛️</div>
-        <div>
-            <h1 style="color: #1a1a1a; margin: 0; font-size: 32px; font-weight: 700;">
-                Financial Advisory Intelligence Platform
-            </h1>
-            <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
-                Multilingual Agentic Hybrid-RAG System
-            </p>
+
+# ============================================================================
+# LOGIN VIEW
+# ============================================================================
+if not st.session_state['logged_in']:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+        <div style="text-align: center; padding: 40px 0;">
+            <div style="font-size: 48px; margin-bottom: 20px;">🏛️</div>
+            <h2 style="color: #1a1a1a;">Financial Advisory Intelligence Platform</h2>
+            <p style="color: #6b7280;">Secure Authentication Required</p>
         </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+        
+        with st.form("login_form"):
+            username = st.text_input("User ID")
+            password = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Secure Login", use_container_width=True)
+            
+            if submit:
+                if username == "veerababu" and password == "RVB@1164a":
+                    st.session_state['logged_in'] = True
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid User ID or Password")
 
-# Tabs
-tab1, tab2 = st.tabs(["💬 Query", "📊 Console"])
-
-with tab1:
-    # Query Input Section
+# ============================================================================
+# MAIN APPLICATION VIEW (Only shown if logged in)
+# ============================================================================
+else:
+    # Professional Header
     st.markdown("""
-    <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
-        <p style="color: #374151; font-size: 13px; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">
-            Financial Query
-        </p>
+    <div style="border-bottom: 2px solid #e5e7eb; padding: 30px 0 20px 0; margin-bottom: 30px;">
+        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+            <div style="font-size: 32px;">🏛️</div>
+            <div>
+                <h1 style="color: #1a1a1a; margin: 0; font-size: 32px; font-weight: 700;">
+                    Financial Advisory Intelligence Platform
+                </h1>
+                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+                    Multilingual Agentic Hybrid-RAG System
+                </p>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([3, 1], gap="medium")
-    
-    with col1:
-        query_input = st.text_area(
-            "Enter your financial question",
-            placeholder="Ask a financial question in any language...",
-            height=90,
-            label_visibility="collapsed"
-        )
-    
-    with col2:
-        st.write("")  # Spacing
-        st.write("")  # Spacing
-        submit_button = st.button("📊 Get Analysis", use_container_width=True, key="submit_btn")
-    
-    if submit_button and query_input:
-        with st.spinner("⏳ Processing your query..."):
-            # Store logs in session state
-            if 'pipeline_logs' not in st.session_state:
-                st.session_state.pipeline_logs = []
-            
-            logs_container = st.container()
-            
-            def update_logs(log_entry):
-                st.session_state.pipeline_logs.append(log_entry)
-                with logs_container:
-                    st.write(f"📝 {log_entry['message']} ({log_entry.get('duration', 0)}ms)")
-            
-            result = process_financial_query(query_input, progress_callback=update_logs)
-            
-            # Store result in session state for tab switching
-            st.session_state.last_result = result
-    
-    # Display empty state if no results yet
-    if 'last_result' not in st.session_state:
+
+    # Tabs
+    tab1, tab2 = st.tabs(["💬 Query", "📊 Console"])
+
+    with tab1:
+        # Query Input Section
         st.markdown("""
-        <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
-            <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
-            <h2 style="color: #1a1a1a; font-size: 24px; font-weight: 600; margin: 0 0 10px 0;">
-                Ask a Financial Question
-            </h2>
-            <p style="color: #9ca3af; font-size: 14px; margin: 0 0 30px 0; max-width: 500px; margin-left: auto; margin-right: auto;">
-                Enter your financial inquiry in any language and receive personalized analysis powered by advanced AI.
+        <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
+            <p style="color: #374151; font-size: 13px; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                Financial Query
             </p>
-            <div style="background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 20px; display: inline-block;">
-                <p style="color: #374151; font-size: 12px; margin: 0; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px;">
-                    Example Questions:
-                </p>
-                <p style="color: #6b7280; font-size: 13px; margin: 4px 0;">• How should I diversify my investment portfolio?</p>
-                <p style="color: #6b7280; font-size: 13px; margin: 4px 0;">• ¿Cómo debo invertir mi dinero?</p>
-                <p style="color: #6b7280; font-size: 13px; margin: 4px 0;">• Quels sont les meilleurs placements?</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Display results if available
-    if 'last_result' in st.session_state:
-        result = st.session_state.last_result
-        
-        st.divider()
-        
-        # Metadata - Professional Cards
-        st.markdown("""
-        <div style="margin-bottom: 20px;">
-            <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
-                Analysis Metadata
-            </h3>
         </div>
         """, unsafe_allow_html=True)
         
-        col1, col2, col3, col4 = st.columns(4, gap="medium")
+        col1, col2 = st.columns([3, 1], gap="medium")
         
         with col1:
-            st.markdown(f"""
-            <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
-                <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">🌐 Language</div>
-                <div style="color: #1a1a1a; font-size: 18px; font-weight: 700;">{result['language_name']}</div>
-                <div style="color: #9ca3af; font-size: 11px; margin-top: 4px;">{result['detected_language'].upper()}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            query_input = st.text_area(
+                "Enter your financial question",
+                placeholder="Ask a financial question in any language...",
+                height=90,
+                label_visibility="collapsed"
+            )
         
         with col2:
-            intent_display = result['intent'].replace('_', ' ').title()
-            st.markdown(f"""
-            <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
-                <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">📍 Intent</div>
-                <div style="color: #1a1a1a; font-size: 16px; font-weight: 700;">{intent_display}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.write("")  # Spacing
+            st.write("")  # Spacing
+            submit_button = st.button("📊 Get Analysis", use_container_width=True, key="submit_btn")
         
-        with col3:
-            confidence = f"{result['confidence']*100:.1f}%"
-            st.markdown(f"""
-            <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
-                <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">✓ Confidence</div>
-                <div style="color: #1a1a1a; font-size: 18px; font-weight: 700;">{confidence}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        if submit_button and query_input:
+            with st.spinner("⏳ Processing your query..."):
+                # Store logs in session state
+                if 'pipeline_logs' not in st.session_state:
+                    st.session_state.pipeline_logs = []
+                
+                logs_container = st.container()
+                
+                def update_logs(log_entry):
+                    st.session_state.pipeline_logs.append(log_entry)
+                    with logs_container:
+                        st.write(f"📝 {log_entry['message']} ({log_entry.get('duration', 0)}ms)")
+                
+                result = process_financial_query(query_input, progress_callback=update_logs)
+                
+                # Store result in session state for tab switching
+                st.session_state.last_result = result
         
-        with col4:
-            processing_time = f"{result['processing_time']}ms"
-            st.markdown(f"""
-            <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
-                <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">⏱️ Processing</div>
-                <div style="color: #1a1a1a; font-size: 18px; font-weight: 700;">{processing_time}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        # Stock Data Section (if companies were found)
-        if result.get('stock_data'):
+        # Display empty state if no results yet
+        if 'last_result' not in st.session_state:
             st.markdown("""
-            <div style="margin-bottom: 10px;">
-                <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
-                    📈 Live Stock Data
+            <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
+                <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
+                <h2 style="color: #1a1a1a; font-size: 24px; font-weight: 600; margin: 0 0 10px 0;">
+                    Ask a Financial Question
+                </h2>
+                <p style="color: #9ca3af; font-size: 14px; margin: 0 0 30px 0; max-width: 500px; margin-left: auto; margin-right: auto;">
+                    Enter your financial inquiry in any language and receive personalized analysis powered by advanced AI.
+                </p>
+                <div style="background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 20px; display: inline-block;">
+                    <p style="color: #374151; font-size: 12px; margin: 0; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px;">
+                        Example Questions:
+                    </p>
+                    <p style="color: #6b7280; font-size: 13px; margin: 4px 0;">• How should I diversify my investment portfolio?</p>
+                    <p style="color: #6b7280; font-size: 13px; margin: 4px 0;">• ¿Cómo debo invertir mi dinero?</p>
+                    <p style="color: #6b7280; font-size: 13px; margin: 4px 0;">• Quels sont les meilleurs placements?</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Display results if available
+        if 'last_result' in st.session_state:
+            result = st.session_state.last_result
+            
+            st.divider()
+            
+            # Metadata - Professional Cards
+            st.markdown("""
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
+                    Analysis Metadata
                 </h3>
             </div>
             """, unsafe_allow_html=True)
             
-            # Display stock data for each company
-            stock_cols = st.columns(len(result['stock_data']))
-            for idx, (ticker, stock_info) in enumerate(result['stock_data'].items()):
-                with stock_cols[idx]:
-                    if 'error' not in stock_info:
-                        company = stock_info.get('company_name', ticker)
-                        price = stock_info.get('current_price', 'N/A')
-                        change = stock_info.get('price_change', 0)
-                        change_pct = stock_info.get('price_change_pct', 0)
-                        pe = stock_info.get('pe_ratio', 'N/A')
-                        div = stock_info.get('dividend_yield', 'N/A')
-                        
-                        change_icon = "📈" if change >= 0 else "📉"
-                        change_color = "#10b981" if change >= 0 else "#ef4444"
-                        
-                        st.markdown(f"""
-                        <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-top: 3px solid {change_color}; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
-                            <div style="font-weight: 700; color: #1a1a1a; font-size: 14px; margin-bottom: 8px;">{company}</div>
-                            <div style="font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">${price}</div>
-                            <div style="color: {change_color}; font-weight: 600; font-size: 13px; margin-bottom: 12px;">{change_icon} {change:+.2f} ({change_pct:+.2f}%)</div>
-                            <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
-                                <div>P/E Ratio: <strong>{pe}</strong></div>
-                                <div>Div. Yield: <strong>{div}</strong></div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                        <div style="background-color: #fee2e2; border: 1px solid #fecaca; padding: 12px; border-radius: 6px;">
-                            <div style="color: #991b1b; font-weight: 600;">{ticker}</div>
-                            <div style="color: #7f1d1d; font-size: 12px;">{stock_info.get('error', 'Unable to fetch data')}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+            col1, col2, col3, col4 = st.columns(4, gap="medium")
+            
+            with col1:
+                st.markdown(f"""
+                <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">🌐 Language</div>
+                    <div style="color: #1a1a1a; font-size: 18px; font-weight: 700;">{result['language_name']}</div>
+                    <div style="color: #9ca3af; font-size: 11px; margin-top: 4px;">{result['detected_language'].upper()}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                intent_display = result['intent'].replace('_', ' ').title()
+                st.markdown(f"""
+                <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">📍 Intent</div>
+                    <div style="color: #1a1a1a; font-size: 16px; font-weight: 700;">{intent_display}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                confidence = f"{result['confidence']*100:.1f}%"
+                st.markdown(f"""
+                <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">✓ Confidence</div>
+                    <div style="color: #1a1a1a; font-size: 18px; font-weight: 700;">{confidence}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                processing_time = f"{result['processing_time']}ms"
+                st.markdown(f"""
+                <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">⏱️ Processing</div>
+                    <div style="color: #1a1a1a; font-size: 18px; font-weight: 700;">{processing_time}</div>
+                </div>
+                """, unsafe_allow_html=True)
             
             st.divider()
-        
-        # Advice Section
-        st.markdown("""
-        <div style="margin-bottom: 10px;">
-            <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
-                💡 Personalized Recommendations
-            </h3>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown(f"""
-        <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); line-height: 1.8; color: #374151;">
-            {result['advice']}
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        # Sources Section
-        st.markdown("""
-        <div style="margin-bottom: 10px;">
-            <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
-                📚 Source Documents
-            </h3>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        for i, source in enumerate(result['sources'], 1):
-            st.markdown(f"""
-            <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 12px; margin: 8px 0; border-radius: 6px;">
-                <div style="color: #1a1a1a; font-weight: 600; font-size: 14px;">
-                    <span style="background-color: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 3px; font-weight: 700; margin-right: 10px;">{i}</span>
-                    {source}
+            
+            # Stock Data Section (if companies were found)
+            if result.get('stock_data'):
+                st.markdown("""
+                <div style="margin-bottom: 10px;">
+                    <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
+                        📈 Live Stock Data
+                    </h3>
                 </div>
+                """, unsafe_allow_html=True)
+                
+                # Display stock data for each company
+                stock_cols = st.columns(len(result['stock_data']))
+                for idx, (ticker, stock_info) in enumerate(result['stock_data'].items()):
+                    with stock_cols[idx]:
+                        if 'error' not in stock_info:
+                            company = stock_info.get('company_name', ticker)
+                            price = stock_info.get('current_price', 'N/A')
+                            change = stock_info.get('price_change', 0)
+                            change_pct = stock_info.get('price_change_pct', 0)
+                            pe = stock_info.get('pe_ratio', 'N/A')
+                            div = stock_info.get('dividend_yield', 'N/A')
+                            
+                            change_icon = "📈" if change >= 0 else "📉"
+                            change_color = "#10b981" if change >= 0 else "#ef4444"
+                            
+                            st.markdown(f"""
+                            <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-top: 3px solid {change_color}; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
+                                <div style="font-weight: 700; color: #1a1a1a; font-size: 14px; margin-bottom: 8px;">{company}</div>
+                                <div style="font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">${price}</div>
+                                <div style="color: {change_color}; font-weight: 600; font-size: 13px; margin-bottom: 12px;">{change_icon} {change:+.2f} ({change_pct:+.2f}%)</div>
+                                <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
+                                    <div>P/E Ratio: <strong>{pe}</strong></div>
+                                    <div>Div. Yield: <strong>{div}</strong></div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div style="background-color: #fee2e2; border: 1px solid #fecaca; padding: 12px; border-radius: 6px;">
+                                <div style="color: #991b1b; font-weight: 600;">{ticker}</div>
+                                <div style="color: #7f1d1d; font-size: 12px;">{stock_info.get('error', 'Unable to fetch data')}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                
+                st.divider()
+            
+            # Advice Section
+            st.markdown("""
+            <div style="margin-bottom: 10px;">
+                <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
+                    💡 Personalized Recommendations
+                </h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+            <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); line-height: 1.8; color: #374151;">
+                {result['advice']}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.divider()
+            
+            # Sources Section
+            st.markdown("""
+            <div style="margin-bottom: 10px;">
+                <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
+                    📚 Source Documents
+                </h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            for i, source in enumerate(result['sources'], 1):
+                st.markdown(f"""
+                <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 12px; margin: 8px 0; border-radius: 6px;">
+                    <div style="color: #1a1a1a; font-weight: 600; font-size: 14px;">
+                        <span style="background-color: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 3px; font-weight: 700; margin-right: 10px;">{i}</span>
+                        {source}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    with tab2:
+        st.markdown("""
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
+                📊 Pipeline Execution Log
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if 'pipeline_logs' in st.session_state and st.session_state.pipeline_logs:
+            logs_text = ""
+            for log in st.session_state.pipeline_logs:
+                logs_text += f"{log['message']}\n"
+            
+            st.markdown(f"""
+            <div style="background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; padding: 16px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; color: #374151; overflow-x: auto;">
+                <pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">{logs_text}</pre>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style="background-color: #eff6ff; border: 1px solid #93c5fd; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 6px;">
+                <p style="color: #1e40af; margin: 0; font-weight: 500;">⏳ Run a query to see pipeline execution logs</p>
             </div>
             """, unsafe_allow_html=True)
 
-with tab2:
-    st.markdown("""
-    <div style="margin-bottom: 20px;">
-        <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #374151;">
-            📊 Pipeline Execution Log
-        </h3>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    if 'pipeline_logs' in st.session_state and st.session_state.pipeline_logs:
-        logs_text = ""
-        for log in st.session_state.pipeline_logs:
-            logs_text += f"{log['message']}\n"
-        
-        st.markdown(f"""
-        <div style="background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; padding: 16px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; color: #374151; overflow-x: auto;">
-            <pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">{logs_text}</pre>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
+    # Professional Sidebar
+    with st.sidebar:
         st.markdown("""
-        <div style="background-color: #eff6ff; border: 1px solid #93c5fd; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 6px;">
-            <p style="color: #1e40af; margin: 0; font-weight: 500;">⏳ Run a query to see pipeline execution logs</p>
+        <div style="padding: 20px 0 0 0;">
+            <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0 0 20px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                👤 Account
+            </h3>
         </div>
         """, unsafe_allow_html=True)
+        
+        st.success(f"Logged in as: **veerababu**")
+        
+        # LOGOUT BUTTON logic - completely clears the session dictionary
+        if st.button("🚪 Logout", use_container_width=True, type="primary"):
+            for key in st.session_state.keys():
+                del st.session_state[key]
+            st.rerun()
 
-# Professional Sidebar
-with st.sidebar:
+        st.divider()
+
+        st.markdown("""
+        <div style="padding: 10px 0 0 0;">
+            <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0 0 20px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                ⚙️ Configuration
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("#### 🌐 Supported Languages")
+        st.markdown("""
+        - 🇬🇧 English (EN)
+        - 🇪🇸 Spanish (ES)
+        - 🇫🇷 French (FR)
+        - 🇩🇪 German (DE)
+        - 🇨🇳 Chinese (ZH)
+        - 🇯🇵 Japanese (JA)
+        - 🇵🇹 Portuguese (PT)
+        - 🇮🇳 Hindi (HI)
+        """)
+        
+        st.divider()
+        
+        st.markdown("#### 📊 Pipeline Architecture")
+        st.markdown("""
+        1. **Input Parsing** – Language Detection + Intent Classification
+        2. **Retrieval** – Semantic Search + Document Matching
+        3. **Context Prep** – Market Data + Knowledge Base
+        4. **Generation** – Deepseek AI (Language-Aware)
+        5. **Formatting** – Response in Query Language
+        """)
+        
+        st.divider()
+        
+        st.markdown("#### ✨ Key Features")
+        st.markdown("""
+        - 🌐 Multilingual Support (8 languages)
+        - 🤖 Deepseek AI
+        - 📊 Real-time Market Integration
+        - 💾 Financial Knowledge Base
+        - 🔄 Hybrid Retrieval System
+        - 📈 Pipeline Execution Logs
+        """)
+
     st.markdown("""
-    <div style="padding: 20px 0 0 0;">
-        <h3 style="color: #1a1a1a; font-size: 16px; font-weight: 600; margin: 0 0 20px 0; text-transform: uppercase; letter-spacing: 0.5px;">
-            ⚙️ Configuration
-        </h3>
+    <div style="text-align: center; padding: 30px 0 20px 0; margin-top: 40px; border-top: 1px solid #e5e7eb;">
+        <p style="color: #6b7280; font-size: 12px; margin: 0; letter-spacing: 0.5px;">
+            Financial Advisory Intelligence Platform v1.0
+        </p>
+        <p style="color: #9ca3af; font-size: 11px; margin: 4px 0 0 0;">
+            Powered by Mr. R. Veerababu-VFSTR | © 2026
+        </p>
     </div>
     """, unsafe_allow_html=True)
-    
-    st.markdown("#### 🌐 Supported Languages")
-    st.markdown("""
-    - 🇬🇧 English (EN)
-    - 🇪🇸 Spanish (ES)
-    - 🇫🇷 French (FR)
-    - 🇩🇪 German (DE)
-    - 🇨🇳 Chinese (ZH)
-    - 🇯🇵 Japanese (JA)
-    - 🇵🇹 Portuguese (PT)
-    - 🇮🇳 Hindi (HI)
-    """)
-    
-    st.divider()
-    
-    st.markdown("#### 📊 Pipeline Architecture")
-    st.markdown("""
-    1. **Input Parsing** – Language Detection + Intent Classification
-    2. **Retrieval** – Semantic Search + Document Matching
-    3. **Context Prep** – Market Data + Knowledge Base
-    4. **Generation** – Deepseek AI (Language-Aware)
-    5. **Formatting** – Response in Query Language
-    """)
-    
-    st.divider()
-    
-    st.markdown("#### ✨ Key Features")
-    st.markdown("""
-    - 🌐 Multilingual Support (8 languages)
-    - 🤖 Deepseek AI
-    - 📊 Real-time Market Integration
-    - 💾 Financial Knowledge Base
-    - 🔄 Hybrid Retrieval System
-    - 📈 Pipeline Execution Logs
-    """)
-
-st.markdown("""
-<div style="text-align: center; padding: 30px 0 20px 0; margin-top: 40px; border-top: 1px solid #e5e7eb;">
-    <p style="color: #6b7280; font-size: 12px; margin: 0; letter-spacing: 0.5px;">
-        Financial Advisory Intelligence Platform v1.0
-    </p>
-    <p style="color: #9ca3af; font-size: 11px; margin: 4px 0 0 0;">
-        Powered by Mr. R. Veerababu-VFSTR | © 2026
-    </p>
-</div>
-""", unsafe_allow_html=True)
