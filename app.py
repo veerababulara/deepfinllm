@@ -227,56 +227,151 @@ def extract_company_names(query: str) -> List[str]:
         
     return []
 
-def fetch_stock_data(ticker: str) -> Dict:
-    """Fetch current stock price and data using yfinance"""
+def get_browser_session():
+    """Create a browser-impersonating session to avoid Yahoo Finance anti-scraping and 429 rate limits"""
     try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period='1d')
-        info = stock.info
+        from curl_cffi import requests as c_requests
+        return c_requests.Session(impersonate="chrome")
+    except Exception:
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
+        return session
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_stock_data(ticker: str) -> Dict:
+    """Fetch current stock price and data with multi-tier fallback against 429 rate limits"""
+    ticker = ticker.strip().upper()
+    session = get_browser_session()
+    
+    data = {
+        'ticker': ticker,
+        'company_name': ticker,
+        'current_price': 'N/A',
+        'price_change': 0.0,
+        'price_change_pct': 0.0,
+        'market_cap': 'N/A',
+        'pe_ratio': 'N/A',
+        'dividend_yield': 'N/A',
+        'fifty_two_week_high': 'N/A',
+        'fifty_two_week_low': 'N/A',
+        'currency': 'USD'
+    }
+    
+    success = False
+    
+    # Tier 1: Try yfinance with browser impersonation session
+    try:
+        stock = yf.Ticker(ticker, session=session)
         
-        current_price = info.get('currentPrice', info.get('regularMarketPrice', 'N/A'))
-        company_name = info.get('longName', ticker)
-        market_cap = info.get('marketCap', 'N/A')
-        pe_ratio = info.get('trailingPE', 'N/A')
-        dividend_yield = info.get('dividendYield', 'N/A')
-        fifty_two_week_high = info.get('fiftyTwoWeekHigh', 'N/A')
-        fifty_two_week_low = info.get('fiftyTwoWeekLow', 'N/A')
+        # 1. Fast Info (lightweight, avoids heavy quoteSummary 429 rate limits)
+        try:
+            fi = stock.fast_info
+            lp = getattr(fi, 'last_price', None)
+            if lp is not None and str(lp) != 'nan':
+                data['current_price'] = round(float(lp), 2)
+                pc = getattr(fi, 'previous_close', lp)
+                if pc is not None and str(pc) != 'nan' and float(pc) != 0:
+                    diff = float(lp) - float(pc)
+                    data['price_change'] = round(diff, 2)
+                    data['price_change_pct'] = round((diff / float(pc) * 100), 2)
+                
+                mcap = getattr(fi, 'market_cap', None)
+                if mcap and str(mcap) != 'nan':
+                    data['market_cap'] = mcap
+                yh = getattr(fi, 'year_high', None)
+                if yh and str(yh) != 'nan':
+                    data['fifty_two_week_high'] = round(float(yh), 2)
+                yl = getattr(fi, 'year_low', None)
+                if yl and str(yl) != 'nan':
+                    data['fifty_two_week_low'] = round(float(yl), 2)
+                curr = getattr(fi, 'currency', None)
+                if curr:
+                    data['currency'] = curr
+                success = True
+        except Exception:
+            pass
+            
+        # 2. History fallback if fast_info didn't give price
+        if not success or data['current_price'] == 'N/A':
+            try:
+                hist = stock.history(period='2d')
+                if len(hist) > 0:
+                    close_p = hist['Close'].iloc[-1]
+                    open_p = hist['Open'].iloc[-1] if len(hist) == 1 else hist['Close'].iloc[-2]
+                    data['current_price'] = round(float(close_p), 2)
+                    diff = float(close_p) - float(open_p)
+                    data['price_change'] = round(diff, 2)
+                    data['price_change_pct'] = round((diff / float(open_p) * 100), 2) if open_p else 0.0
+                    success = True
+            except Exception:
+                pass
+                
+        # 3. Supplemental metadata (Company name, PE, Dividend)
+        try:
+            info = stock.info
+            if isinstance(info, dict) and len(info) > 5:
+                name = info.get('longName') or info.get('shortName')
+                if name:
+                    data['company_name'] = name
+                if data['current_price'] == 'N/A':
+                    cp = info.get('currentPrice') or info.get('regularMarketPrice')
+                    if cp:
+                        data['current_price'] = round(float(cp), 2)
+                        success = True
+                pe = info.get('trailingPE')
+                if pe and str(pe) != 'nan':
+                    data['pe_ratio'] = round(float(pe), 2)
+                dy = info.get('dividendYield')
+                if dy and str(dy) != 'nan':
+                    data['dividend_yield'] = f"{round(float(dy), 2)}%"
+        except Exception:
+            pass
+            
+    except Exception:
+        pass
         
-        # Calculate price change
-        if len(hist) > 0:
-            close_price = hist['Close'].iloc[-1]
-            open_price = hist['Open'].iloc[-1]
-            price_change = close_price - open_price
-            price_change_pct = (price_change / open_price * 100) if open_price != 0 else 0
-        else:
-            close_price = current_price if isinstance(current_price, (int, float)) else 0
-            price_change = 0
-            price_change_pct = 0
+    # Tier 2: Direct Yahoo Chart API (resilient against quoteSummary blocks)
+    if not success or data['current_price'] == 'N/A':
+        try:
+            chart_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
+            resp = session.get(chart_url, timeout=6)
+            if resp.status_code == 200:
+                res_data = resp.json().get('chart', {}).get('result', [{}])[0]
+                meta = res_data.get('meta', {})
+                rmp = meta.get('regularMarketPrice')
+                if rmp:
+                    data['current_price'] = round(float(rmp), 2)
+                    prev_c = meta.get('chartPreviousClose', rmp)
+                    diff = float(rmp) - float(prev_c) if prev_c else 0.0
+                    data['price_change'] = round(diff, 2)
+                    data['price_change_pct'] = round((diff / float(prev_c) * 100), 2) if prev_c else 0.0
+                    data['company_name'] = meta.get('longName') or meta.get('shortName') or ticker
+                    data['currency'] = meta.get('currency', data['currency'])
+                    if meta.get('fiftyTwoWeekHigh'):
+                        data['fifty_two_week_high'] = round(float(meta['fiftyTwoWeekHigh']), 2)
+                    if meta.get('fiftyTwoWeekLow'):
+                        data['fifty_two_week_low'] = round(float(meta['fiftyTwoWeekLow']), 2)
+                    success = True
+        except Exception:
+            pass
+            
+    if not success and data['current_price'] == 'N/A':
+        data['error'] = 'Yahoo Finance rate limited. Market data temporarily unavailable.'
+        data['current_price'] = 'Unavailable'
         
-        return {
-            'ticker': ticker,
-            'company_name': company_name,
-            'current_price': current_price,
-            'price_change': round(price_change, 2) if isinstance(price_change, (int, float)) else 0,
-            'price_change_pct': round(price_change_pct, 2) if isinstance(price_change_pct, (int, float)) else 0,
-            'market_cap': market_cap,
-            'pe_ratio': round(pe_ratio, 2) if isinstance(pe_ratio, (int, float)) else 'N/A',
-            'dividend_yield': f"{round(dividend_yield*100, 2)}%" if isinstance(dividend_yield, (int, float)) else 'N/A',
-            'fifty_two_week_high': round(fifty_two_week_high, 2) if isinstance(fifty_two_week_high, (int, float)) else 'N/A',
-            'fifty_two_week_low': round(fifty_two_week_low, 2) if isinstance(fifty_two_week_low, (int, float)) else 'N/A',
-        }
-    except Exception as e:
-        return {
-            'ticker': ticker,
-            'error': str(e),
-            'current_price': 'Unable to fetch'
-        }
+    return data
 
 def get_multiple_stock_data(tickers: List[str]) -> Dict[str, Dict]:
-    """Fetch stock data for multiple companies"""
+    """Fetch stock data for multiple companies with polite request pacing"""
     stock_data = {}
-    for ticker in tickers:
+    for i, ticker in enumerate(tickers):
         stock_data[ticker] = fetch_stock_data(ticker)
+        if i < len(tickers) - 1:
+            time.sleep(0.3)  # Polite pacing between multiple tickers to prevent burst rate-limiting
     return stock_data
 
 def format_stock_data_for_prompt(stock_data: Dict) -> str:
@@ -287,7 +382,7 @@ def format_stock_data_for_prompt(stock_data: Dict) -> str:
     formatted = "\n**LIVE STOCK MARKET DATA:**\n"
     
     for ticker, data in stock_data.items():
-        if 'error' in data:
+        if 'error' in data and data.get('current_price') in ('Unavailable', 'Unable to fetch', 'N/A'):
             formatted += f"\n- {ticker}: {data['error']}"
         else:
             company_name = data.get('company_name', ticker)
@@ -296,9 +391,18 @@ def format_stock_data_for_prompt(stock_data: Dict) -> str:
             change_pct = data.get('price_change_pct', 0)
             pe_ratio = data.get('pe_ratio', 'N/A')
             dividend = data.get('dividend_yield', 'N/A')
+            currency = data.get('currency', 'USD')
+            curr_sym = "₹" if currency == 'INR' else ("€" if currency == 'EUR' else ("£" if currency == 'GBP' else "$"))
             
-            change_indicator = "📈" if change >= 0 else "📉"
-            formatted += f"\n- **{company_name} ({ticker})**: ${price} {change_indicator} ({change_pct:+.2f}%)"
+            try:
+                change_num = float(change)
+                change_indicator = "📈" if change_num >= 0 else "📉"
+                change_str = f"({float(change_pct):+.2f}%)"
+            except (ValueError, TypeError):
+                change_indicator = "📊"
+                change_str = ""
+            
+            formatted += f"\n- **{company_name} ({ticker})**: {curr_sym}{price} {change_indicator} {change_str}"
             formatted += f"\n  - PE Ratio: {pe_ratio} | Dividend Yield: {dividend}"
     
     return formatted
@@ -968,22 +1072,31 @@ else:
                 stock_cols = st.columns(len(result['stock_data']))
                 for idx, (ticker, stock_info) in enumerate(result['stock_data'].items()):
                     with stock_cols[idx]:
-                        if 'error' not in stock_info:
+                        if 'error' not in stock_info or stock_info.get('current_price') not in ('Unable to fetch', 'Unavailable', 'N/A'):
                             company = stock_info.get('company_name', ticker)
                             price = stock_info.get('current_price', 'N/A')
                             change = stock_info.get('price_change', 0)
                             change_pct = stock_info.get('price_change_pct', 0)
                             pe = stock_info.get('pe_ratio', 'N/A')
                             div = stock_info.get('dividend_yield', 'N/A')
+                            currency = stock_info.get('currency', 'USD')
+                            curr_sym = "₹" if currency == 'INR' else ("€" if currency == 'EUR' else ("£" if currency == 'GBP' else "$"))
                             
-                            change_icon = "📈" if change >= 0 else "📉"
-                            change_color = "#10b981" if change >= 0 else "#ef4444"
+                            try:
+                                change_val = float(change)
+                                change_pct_val = float(change_pct)
+                                change_icon = "📈" if change_val >= 0 else "📉"
+                                change_color = "#10b981" if change_val >= 0 else "#ef4444"
+                                change_text = f"{change_icon} {change_val:+.2f} ({change_pct_val:+.2f}%)"
+                            except Exception:
+                                change_color = "#3b82f6"
+                                change_text = ""
                             
                             st.markdown(f"""
                             <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-top: 3px solid {change_color}; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
                                 <div style="font-weight: 700; color: #1a1a1a; font-size: 14px; margin-bottom: 8px;">{company}</div>
-                                <div style="font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">${price}</div>
-                                <div style="color: {change_color}; font-weight: 600; font-size: 13px; margin-bottom: 12px;">{change_icon} {change:+.2f} ({change_pct:+.2f}%)</div>
+                                <div style="font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">{curr_sym}{price}</div>
+                                <div style="color: {change_color}; font-weight: 600; font-size: 13px; margin-bottom: 12px;">{change_text}</div>
                                 <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
                                     <div>P/E Ratio: <strong>{pe}</strong></div>
                                     <div>Div. Yield: <strong>{div}</strong></div>
