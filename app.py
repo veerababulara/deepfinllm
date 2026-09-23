@@ -20,7 +20,12 @@ from typing import Dict, List, Tuple
 load_dotenv()
 
 # Configure DeepSeek API
-DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY') or st.secrets.get('DEEPSEEK_API_KEY')
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
+if not DEEPSEEK_API_KEY:
+    try:
+        DEEPSEEK_API_KEY = st.secrets.get('DEEPSEEK_API_KEY')
+    except Exception:
+        DEEPSEEK_API_KEY = None
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 if not DEEPSEEK_API_KEY:
@@ -33,13 +38,19 @@ if not DEEPSEEK_API_KEY:
 
 LANGUAGE_NAMES = {
     'en': 'English',
-    'es': 'Spanish',
+    'hi': 'Hindi',
+    'zh-cn': 'Chinese',
+    'zh': 'Chinese',
+    'zh-tw': 'Chinese',
     'fr': 'French',
     'de': 'German',
-    'zh-cn': 'Chinese',
+    'it': 'Italian',
     'ja': 'Japanese',
+    'ko': 'Korean',
     'pt': 'Portuguese',
-    'hi': 'Hindi',
+    'ru': 'Russian',
+    'es': 'Spanish',
+    'sv': 'Swedish',
 }
 
 # Financial documents (Mock Knowledge Base)
@@ -410,14 +421,20 @@ def format_stock_data_for_prompt(stock_data: Dict) -> str:
 def get_language_prompt_instruction(language_code: str) -> str:
     """Get instruction for Deepseek to respond in specific language"""
     instructions = {
-        'es': 'IMPORTANT: Respond entirely in Spanish. Your response must be 100% in Spanish language.',
+        'en': 'Respond in English.',
+        'hi': 'IMPORTANT: Respond entirely in Hindi. Your response must be 100% in Hindi language.',
+        'zh-cn': 'IMPORTANT: Respond entirely in Chinese (Simplified). Your response must be 100% in Chinese language.',
+        'zh': 'IMPORTANT: Respond entirely in Chinese (Simplified). Your response must be 100% in Chinese language.',
+        'zh-tw': 'IMPORTANT: Respond entirely in Chinese (Traditional). Your response must be 100% in Chinese language.',
         'fr': 'IMPORTANT: Respond entirely in French. Your response must be 100% in French language.',
         'de': 'IMPORTANT: Respond entirely in German. Your response must be 100% in German language.',
-        'zh-cn': 'IMPORTANT: Respond entirely in Chinese (Simplified). Your response must be 100% in Chinese language.',
+        'it': 'IMPORTANT: Respond entirely in Italian. Your response must be 100% in Italian language.',
         'ja': 'IMPORTANT: Respond entirely in Japanese. Your response must be 100% in Japanese language.',
+        'ko': 'IMPORTANT: Respond entirely in Korean. Your response must be 100% in Korean language.',
         'pt': 'IMPORTANT: Respond entirely in Portuguese. Your response must be 100% in Portuguese language.',
-        'hi': 'IMPORTANT: Respond entirely in Hindi. Your response must be 100% in Hindi language.',
-        'en': 'Respond in English.',
+        'ru': 'IMPORTANT: Respond entirely in Russian. Your response must be 100% in Russian language.',
+        'es': 'IMPORTANT: Respond entirely in Spanish. Your response must be 100% in Spanish language.',
+        'sv': 'IMPORTANT: Respond entirely in Swedish. Your response must be 100% in Swedish language.',
     }
     return instructions.get(language_code, 'Respond in English.')
 
@@ -1206,13 +1223,17 @@ else:
         st.markdown("#### 🌐 Supported Languages")
         st.markdown("""
         - 🇬🇧 English (EN)
-        - 🇪🇸 Spanish (ES)
+        - 🇮🇳 Hindi (HI)
+        - 🇨🇳 Chinese (ZH)
         - 🇫🇷 French (FR)
         - 🇩🇪 German (DE)
-        - 🇨🇳 Chinese (ZH)
+        - 🇮🇹 Italian (IT)
         - 🇯🇵 Japanese (JA)
+        - 🇰🇷 Korean (KO)
         - 🇵🇹 Portuguese (PT)
-        - 🇮🇳 Hindi (HI)
+        - 🇷🇺 Russian (RU)
+        - 🇪🇸 Spanish (ES)
+        - 🇸🇪 Swedish (SV)
         """)
         
         st.divider()
@@ -1230,7 +1251,7 @@ else:
         
         st.markdown("#### ✨ Key Features")
         st.markdown("""
-        - 🌐 Multilingual Support (8 languages)
+        - 🌐 Multilingual Support (12 languages)
         - 🤖 Deepseek AI
         - 📊 Real-time Market Integration
         - 💾 Financial Knowledge Base
