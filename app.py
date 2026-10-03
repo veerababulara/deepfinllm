@@ -1,11 +1,11 @@
 """
-Financial Advisory Intelligence Platform - Python/Streamlit Version
+DeepFinLLM 2.0 - Python/Streamlit Version
 Multilingual Agentic Hybrid-RAG System (Single File - Backend + Frontend)
 """
 
 import streamlit as st
 import requests
-from langdetect import detect, LangDetectException
+from langdetect import detect_langs, detect, LangDetectException
 import time
 import json
 from datetime import datetime
@@ -121,13 +121,20 @@ FINANCIAL_DOCUMENTS = [
 # UTILITY FUNCTIONS
 # ============================================================================
 
-def detect_language(text: str) -> str:
-    """Detect language using langdetect library"""
+def detect_language(text: str) -> Tuple[str, float]:
+    """Detect language and confidence score using langdetect library"""
+    if not text or not text.strip():
+        return 'en', 1.0
     try:
-        lang = detect(text)
-        return lang
+        langs = detect_langs(text)
+        if langs:
+            top = langs[0]
+            return top.lang, float(top.prob)
     except LangDetectException:
-        return 'en'  # Default to English
+        pass
+    except Exception:
+        pass
+    return 'en', 1.0
 
 def classify_intent(query: str) -> str:
     """Classify financial intent"""
@@ -467,12 +474,12 @@ def process_financial_query(query: str, progress_callback=None):
     stage1_start = time.time()
     simulate_latency(200, 400)
     
-    detected_language = detect_language(query)
+    detected_language, language_confidence = detect_language(query)
     intent = classify_intent(query)
     keywords = expand_keywords(query)
     
     stage1_duration = int((time.time() - stage1_start) * 1000)
-    log_step('STAGE 1', f'✓ Language: {detected_language.upper()} | Intent: {intent} | Keywords: {len(keywords)}', stage1_duration)
+    log_step('STAGE 1', f'✓ Language: {detected_language.upper()} ({language_confidence*100:.1f}%) | Intent: {intent} | Keywords: {len(keywords)}', stage1_duration)
     
     # ========================================================================
     # STAGE 1B: LIVE STOCK DATA EXTRACTION (NEW!)
@@ -639,6 +646,7 @@ IMPORTANT: Use the live stock data and market context provided above to give spe
     return {
         'query': query,
         'detected_language': detected_language,
+        'language_confidence': language_confidence,
         'language_name': LANGUAGE_NAMES.get(detected_language, detected_language.upper()),
         'intent': intent,
         'advice': advice,
@@ -656,7 +664,7 @@ IMPORTANT: Use the live stock data and market context provided above to give spe
 
 # Page configuration MUST be the first Streamlit command
 st.set_page_config(
-    page_title="Financial Advisory Platform",
+    page_title="DeepFinLLM 2.0",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -914,7 +922,7 @@ if not st.session_state['logged_in']:
         st.markdown("""
         <div style="text-align: center; padding: 40px 0;">
             <div style="font-size: 48px; margin-bottom: 20px;">🏛️</div>
-            <h2 style="color: #1a1a1a;">Financial Advisory Intelligence Platform</h2>
+            <h2 style="color: #1a1a1a;">DeepFinLLM 2.0</h2>
             <p style="color: #6b7280;">Secure Authentication Required</p>
         </div>
         """, unsafe_allow_html=True)
@@ -942,7 +950,7 @@ else:
             <div style="font-size: 32px;">🏛️</div>
             <div>
                 <h1 style="color: #1a1a1a; margin: 0; font-size: 32px; font-weight: 700;">
-                    Financial Advisory Intelligence Platform
+                    DeepFinLLM 2.0
                 </h1>
                 <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
                     Multilingual Agentic Hybrid-RAG System
@@ -1038,11 +1046,12 @@ else:
             col1, col2, col3, col4 = st.columns(4, gap="medium")
             
             with col1:
+                lang_conf = result.get('language_confidence', 1.0)
                 st.markdown(f"""
                 <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
                     <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">🌐 Language</div>
                     <div style="color: #1a1a1a; font-size: 18px; font-weight: 700;">{result['language_name']}</div>
-                    <div style="color: #9ca3af; font-size: 11px; margin-top: 4px;">{result['detected_language'].upper()}</div>
+                    <div style="color: #2563eb; font-size: 12px; font-weight: 600; margin-top: 4px;">Confidence: {lang_conf*100:.1f}% <span style="color: #9ca3af; font-weight: 400;">({result['detected_language'].upper()})</span></div>
                 </div>
                 """, unsafe_allow_html=True)
             
@@ -1059,7 +1068,7 @@ else:
                 confidence = f"{result['confidence']*100:.1f}%"
                 st.markdown(f"""
                 <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
-                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">✓ Confidence</div>
+                    <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">✓ Analysis Confidence</div>
                     <div style="color: #1a1a1a; font-size: 18px; font-weight: 700;">{confidence}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1262,7 +1271,7 @@ else:
     st.markdown("""
     <div style="text-align: center; padding: 30px 0 20px 0; margin-top: 40px; border-top: 1px solid #e5e7eb;">
         <p style="color: #6b7280; font-size: 12px; margin: 0; letter-spacing: 0.5px;">
-            Financial Advisory Intelligence Platform v1.0
+            DeepFinLLM 2.0
         </p>
         <p style="color: #9ca3af; font-size: 11px; margin: 4px 0 0 0;">
             Powered by Mr. R. Veerababu-VFSTR | © 2026
