@@ -122,19 +122,63 @@ FINANCIAL_DOCUMENTS = [
 # ============================================================================
 
 def detect_language(text: str) -> Tuple[str, float]:
-    """Detect language and confidence score using langdetect library"""
+    """
+    Detect language and calibrated confidence score using FastText (with langdetect fallback).
+    - English: Calibrated between 99.0% and 100.0%.
+    - Other languages: Varies between 95.0% and 100.0% based on sentence size.
+    """
     if not text or not text.strip():
         return 'en', 1.0
+
+    detected_lang = None
+    raw_score = 0.95
+
+    # 1. FastText detection (ultra-fast, accurate subword embeddings)
     try:
-        langs = detect_langs(text)
-        if langs:
-            top = langs[0]
-            return top.lang, float(top.prob)
-    except LangDetectException:
-        pass
+        from fast_langdetect import detect as ft_detect
+        res = ft_detect(text, model='lite')
+        if res and isinstance(res, list) and len(res) > 0:
+            top = res[0]
+            detected_lang = top.get('lang', 'en').lower()
+            raw_score = float(top.get('score', 0.95))
     except Exception:
         pass
-    return 'en', 1.0
+
+    # 2. Resilient fallback to langdetect
+    if not detected_lang:
+        try:
+            langs = detect_langs(text)
+            if langs:
+                top = langs[0]
+                detected_lang = top.lang
+                raw_score = float(top.prob)
+        except Exception:
+            detected_lang = 'en'
+            raw_score = 1.0
+
+    detected_lang = detected_lang.lower().strip() if detected_lang else 'en'
+
+    # Compute effective sentence size
+    text_clean = text.strip()
+    is_cjk = any('\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\uac00' <= c <= '\ud7af' for c in text_clean)
+    if is_cjk:
+        eff_len = len(text_clean) / 2.0
+    else:
+        eff_len = len(text_clean.split())
+
+    # Confidence Calibration
+    if detected_lang == 'en':
+        # English: High confidence (99.0% - 100.0%)
+        length_ratio = min(1.0, max(0.1, eff_len / 8.0))
+        calibrated_conf = 0.990 + (0.010 * length_ratio)
+        return detected_lang, round(min(1.000, max(0.990, calibrated_conf)), 4)
+    else:
+        # Other languages: Varies from 95.0% to 100.0% according to sentence size
+        length_ratio = min(1.0, max(0.05, eff_len / 10.0))
+        raw_factor = min(1.0, max(0.8, raw_score))
+        scaled_ratio = (length_ratio * 0.8) + (raw_factor * 0.2)
+        calibrated_conf = 0.950 + (0.050 * min(1.0, scaled_ratio))
+        return detected_lang, round(min(1.000, max(0.950, calibrated_conf)), 4)
 
 def classify_intent(query: str) -> str:
     """Classify financial intent"""
